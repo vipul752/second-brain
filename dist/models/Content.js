@@ -11,7 +11,6 @@ const contentSchema = new mongoose_1.default.Schema({
     title: { type: String },
     type: {
         type: String,
-        enum: ["video", "audio", "image", "article"],
         required: true,
     },
     tags: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: "Tags" }],
@@ -19,6 +18,6 @@ const contentSchema = new mongoose_1.default.Schema({
         type: mongoose_1.default.Schema.Types.ObjectId,
         ref: "User",
     },
-});
+}, { timestamps: true });
 const Content = mongoose_1.default.model("Content", contentSchema);
 exports.default = Content;

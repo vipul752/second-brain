@@ -5,11 +5,15 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import connectDB from "./config/db";
 import authMiddleware from "./middleware/middleware";
+import cors from "cors";
+import Link from "./models/Link";
+import { time, timeStamp } from "console";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+app.use(cors());
+``;
 connectDB();
 
 app.post("/api/v1/signup", async (req, res) => {
@@ -129,6 +133,7 @@ app.delete("/api/v1/content/:id", authMiddleware, async (req, res) => {
       _id: contentId,
       // @ts-ignore
       userId: req.userId,
+      timestamps: true,
     });
 
     return res.status(200).json({
@@ -140,17 +145,57 @@ app.delete("/api/v1/content/:id", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/api/v1/brainly/share", async (req, res) => {
+//@ts-ignore
+app.post("/api/v1/brain/share", authMiddleware, async (req, res) => {
   try {
-    const { contentId } = req.body;
+    const { share } = req.body;
 
-    return res.status(200).json({
-      message: "content shared with brain successfully",
-    });
+    if (share) {
+      //@ts-ignore
+      const existingLink = await Link.findOne({ userId: req.userId });
+      if (existingLink) {
+        res.json({ hash: existingLink.hash });
+        return;
+      }
+
+      const hash = Math.random().toString(36).substring(2, 8);
+      //@ts-ignore
+
+      await Link.create({ userId: req.userId, hash });
+      res.json({ hash });
+    } else {
+      //@ts-ignore
+
+      await Link.deleteOne({ userId: req.userId });
+      res.json({ message: "Removed link" });
+    }
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "internal server error" });
   }
+});
+
+app.get("/api/v1/brain/:shareLink", async (req, res) => {
+  const hash = req.params.shareLink;
+
+  const link = await Link.findOne({ hash });
+  if (!link) {
+    res.status(404).json({ message: "Invalid share link" });
+    return;
+  }
+
+  const content = await Content.find({ userId: link.userId });
+  const user = await User.findOne({ _id: link.userId });
+
+  if (!user) {
+    res.status(404).json({ message: "User not found" });
+    return;
+  }
+
+  res.json({
+    username: user.username,
+    content,
+  });
 });
 
 app.listen(3000, () => {

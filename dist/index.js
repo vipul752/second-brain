@@ -19,9 +19,13 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const db_1 = __importDefault(require("./config/db"));
 const middleware_1 = __importDefault(require("./middleware/middleware"));
+const cors_1 = __importDefault(require("cors"));
+const Link_1 = __importDefault(require("./models/Link"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
+app.use((0, cors_1.default)());
+``;
 (0, db_1.default)();
 app.post("/api/v1/signup", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -118,10 +122,16 @@ app.get("/api/v1/content", middleware_1.default, (req, res) => __awaiter(void 0,
         return res.status(500).json({ message: "internal server error" });
     }
 }));
-app.delete("/api/v1/content/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+//@ts-ignore
+app.delete("/api/v1/content/:id", middleware_1.default, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { id } = req.params;
-        yield Content_1.default.findByIdAndDelete(id);
+        const contentId = req.params.id;
+        yield Content_1.default.findByIdAndDelete({
+            _id: contentId,
+            // @ts-ignore
+            userId: req.userId,
+            timestamps: true,
+        });
         return res.status(200).json({
             message: "content deleted successfully",
         });
@@ -131,17 +141,50 @@ app.delete("/api/v1/content/:id", (req, res) => __awaiter(void 0, void 0, void 0
         return res.status(500).json({ message: "internal server error" });
     }
 }));
-app.post("/api/v1/brainly/share", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+//@ts-ignore
+app.post("/api/v1/brain/share", middleware_1.default, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { contentId } = req.body;
-        return res.status(200).json({
-            message: "content shared with brain successfully",
-        });
+        const { share } = req.body;
+        if (share) {
+            //@ts-ignore
+            const existingLink = yield Link_1.default.findOne({ userId: req.userId });
+            if (existingLink) {
+                res.json({ hash: existingLink.hash });
+                return;
+            }
+            const hash = Math.random().toString(36).substring(2, 8);
+            //@ts-ignore
+            yield Link_1.default.create({ userId: req.userId, hash });
+            res.json({ hash });
+        }
+        else {
+            //@ts-ignore
+            yield Link_1.default.deleteOne({ userId: req.userId });
+            res.json({ message: "Removed link" });
+        }
     }
     catch (error) {
         console.log(error);
         return res.status(500).json({ message: "internal server error" });
     }
+}));
+app.get("/api/v1/brain/:shareLink", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const hash = req.params.shareLink;
+    const link = yield Link_1.default.findOne({ hash });
+    if (!link) {
+        res.status(404).json({ message: "Invalid share link" });
+        return;
+    }
+    const content = yield Content_1.default.find({ userId: link.userId });
+    const user = yield User_1.default.findOne({ _id: link.userId });
+    if (!user) {
+        res.status(404).json({ message: "User not found" });
+        return;
+    }
+    res.json({
+        username: user.username,
+        content,
+    });
 }));
 app.listen(3000, () => {
     console.log("Server is running on port 3000");
